@@ -4,14 +4,15 @@ TOOLCHAIN := arm-none-eabi
 CC := $(TOOLCHAIN)-gcc
 AS := $(TOOLCHAIN)-as
 
-USE_FREERTOS := true
+USE_FREERTOS := false
 
 # CMSIS
 CMSIS_PATH   := ./../../../CMSIS_6/CMSIS
 
-CHIPSET_PATH := ./../../STM32F0xx_StdPeriph_Lib_V1.6.0/Libraries/CMSIS/Device/ST/STM32F0xx
-STARTUP_PATH := $(CHIPSET_PATH)/Source/Templates/gcc_ride7
+CHIPSET_PATH := ./../../STM32CubeF0/Drivers/CMSIS/Device/ST/STM32F0xx
+STARTUP_PATH := $(CHIPSET_PATH)/Source/Templates/gcc
 SYSTEM_PATH  := $(CHIPSET_PATH)/Source/Templates
+HAL_PATH     := ./../../STM32CubeF0/Drivers/STM32F0xx_HAL_Driver
 
 LD_PATH      := ./../../STM32F0_LD
 
@@ -28,7 +29,7 @@ OBJ_PATH := ./obj
 LIB_PATH := ./../../libs
 
 # ARM CORTEX-M0+ CMSIS startup_stm32f0xx.s file
-startup_src += $(wildcard $(STARTUP_PATH)/startup_stm32f051.s)
+startup_src += $(wildcard $(STARTUP_PATH)/startup_stm32f051x8.s)
 startup_obj += $(patsubst $(STARTUP_PATH)/%.s, $(OBJ_PATH)/cmsis/%.o, $(startup_src))
 
 # ARM CORTEX-M0+ CMSIS system_stm32f0xx.c file
@@ -38,6 +39,10 @@ system_obj += $(patsubst $(SYSTEM_PATH)/%.c, $(OBJ_PATH)/cmsis/%.o, $(system_src
 # ARM DSP, Math support
 arm_dsp_src += $(shell find $(CMSIS_DSP_PATH)/Source -name *.c)
 arm_dsp_obj += $(patsubst $(CMSIS_DSP_PATH)/%.c, $(OBJ_PATH)/cmsis-dsp/%.o, $(arm_dsp_src))
+
+# STM HAL files
+hal_src += $(shell find $(HAL_PATH)/Src -name *.c)
+hal_obj += $(patsubst $(HAL_PATH)/%.c, $(OBJ_PATH)/hal/%.o, $(hal_src))
 
 # FreeRTOS support
 freertos_src += $(shell find $(FREERTOS_PATH)/portable/GCC/ARM_CM0 -name *.c)
@@ -75,17 +80,18 @@ mcu := -mcpu=cortex-m0plus -mfloat-abi=soft -mthumb -std=gnu2x
 debug := -g -gdwarf-4 -O0
 
 CFLAGS += $(mcu) $(specs)
-CFLAGS += -DSTM32F051
-#CFLAGS += -DSTM32F0XX_MD
-#CFLAGS += -DUSE_STDPERIPH_DRIVER
+CFLAGS += -DSTM32F051x8
+#CFLAGS += -DUSE_FULL_LL_DRIVER
 CFLAGS += -DARM_MATH_CM0PLUS
 CFLAGS += \
 	-I$(CMSIS_PATH)/Core/Include \
 	-I$(CHIPSET_PATH)/Include \
 	-I$(CMSIS_DSP_PATH)/Include \
 	-I$(CMSIS_DSP_PATH)/PrivateInclude \
+	-I$(HAL_PATH)/Inc \
 	-I$(FREERTOS_PATH)/include \
-	-I$(FREERTOS_PATH)/portable/GCC/ARM_CM0
+	-I$(FREERTOS_PATH)/portable/GCC/ARM_CM0 \
+	-I$(INC_PATH)
 
 ifeq ($(USE_FREERTOS),true)
 CFLAGS += -D_USE_FREERTOS
@@ -115,7 +121,9 @@ LDFLAGS += -T$(linker_script)
 
 .PHONY : all
 
-objs += $(startup_obj) $(system_obj)
+objs += $(startup_obj)
+objs += $(system_obj)
+objs += $(hal_obj)
 
 ifeq ($(USE_FREERTOS),true)
 objs += $(freertos_obj)
@@ -161,6 +169,11 @@ $(OBJ_PATH)/cmsis/%.o : $(SYSTEM_PATH)/%.c
 
 # CMSIS-DSP .o RULES
 $(OBJ_PATH)/cmsis-dsp/%.o : $(CMSIS_DSP_PATH)/%.c
+	@echo $(CC) $<
+	@$(CC) $< $(CFLAGS) $@
+
+# HAL .o RULES
+$(OBJ_PATH)/hal/%.o : $(HAL_PATH)/%.c
 	@echo $(CC) $<
 	@$(CC) $< $(CFLAGS) $@
 

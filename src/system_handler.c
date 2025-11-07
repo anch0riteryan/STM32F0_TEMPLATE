@@ -1,6 +1,6 @@
 #include <stm32f0xx.h>
 
-#ifndef _USE_FREERTOS
+#ifndef USE_FREERTOS
 
 void SysTick_Handler () {
 }
